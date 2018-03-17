@@ -2,6 +2,8 @@ var Discord = require('discord.io');
 var logger = require('winston');
 var request = require('request');
 var auth = require('./auth.json');
+var helpers = require('./helpers');
+var highscores = require('./highscores');
 
 // Configure logger settings
 logger.remove(logger.transports.Console);
@@ -13,7 +15,7 @@ logger.info('Starting bot');
 
 
 var bot = new Discord.Client({
-	token: "NDI0Mzg1NDE2MjA5MzY3MDcy.DY4RZQ.53kjMr-voK87tKjC8qNbInKrUgs",
+	token: auth.token,
 	autorun: true
 });
 
@@ -23,6 +25,11 @@ bot.on('ready', function(evt) {
 	logger.info('Connected');
 	logger.info('Logged in as: ');
 	logger.info(bot.username + ' - (' + bot.id + ')');
+	bot.setPresence({
+		game: {
+			name: "Type !help for commands.",
+		}
+	});
 });
 
 bot.on('message', function(user, userID, channelID, message, evt) {
@@ -33,19 +40,53 @@ bot.on('message', function(user, userID, channelID, message, evt) {
 		args = args.splice(1);
 		switch(cmd) {
 			case 'price':
-				var itemName = args.join(' ').toLowerCase();
-				var itemPrice = cachedPrices[itemName];
-				if (itemPrice) {
-					bot.sendMessage({
-						to: channelID,
-						message: '`Item: ' + itemName + ' Price: ' + itemPrice + '`'
-					});
-				} else {
-					bot.sendMessage({
-						to: channelID,
-						message: '`Unable to find price for: ' + itemName + '`'
-					});
+				var itemNames = args.join(' ').toLowerCase().split(',');
+				itemNames.forEach(function(itemName) {
+					itemName = itemName.trim();
+					logger.info('Attempting to get price for ' + itemName + ' in channel ' + channelID);
+					itemPrice = cachedPrices[itemName];
+					if (itemPrice) {
+						bot.sendMessage({
+							to: channelID,
+							message: '`Item: ' + itemName + ' Price: ' + formatNumber(itemPrice) + '`'
+						});
+					} else {
+						bot.sendMessage({
+							to: channelID,
+							message: '`Unable to find price for: ' + itemName + '`'
+						});
+					}
+				});
+				break;
+			case 'stats':
+				var gameMode = '-n'
+				if ('-n|-i|-u'.indexOf(args[args.length - 1]) != -1) {
+					//Found a gamemode modifier
+					gameMode = args[args.length - 1];
+					args.pop();
 				}
+				var playerName = args.join(' ').toLowerCase().trim();
+				var playerStatsMessage = "1";
+				highscores.getHighscoresForPlayer(playerName, gameMode, function(playerStatsMessage) {
+					if (playerStatsMessage) {
+						bot.sendMessage({
+							to: channelID,
+							message: playerStatsMessage
+						});
+					} else {
+						bot.sendMessage({
+							to: channelID,
+							message: '`Unable to find stats for player: ' + playerName + '`'
+						});
+					}
+				});
+				break;
+			case 'help':
+				bot.sendMessage({
+					to: userID,
+					message: helpers.getHelpMessage()
+				});
+				break;
 		}
 	}
 });
@@ -69,8 +110,13 @@ function loadPrices() {
 	});
 }
 
-loadPrices();
+//loadPrices();
 setInterval(function() {
 	logger.info('Updating prices');
 	loadPrices();
 }, PRICE_UPDATE_DELAY * 60 * 1000);
+
+//Helper methods
+function formatNumber(number) {
+	return number.toLocaleString();
+}
