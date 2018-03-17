@@ -1,0 +1,10 @@
+{
+	"name": "shades-bot",
+	"version": "1.0.0",
+	"description": "Bot with various OSRS related commmands.",
+	"main": "bot.js",
+	"author": "Sir Girion",
+	"dependencies": {
+		"discord.io": "^2.5.3"
+	}
+}
